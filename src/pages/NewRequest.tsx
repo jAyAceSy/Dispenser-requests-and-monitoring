@@ -5,6 +5,16 @@ import { useAuth } from '../lib/AuthContext';
 import type { Warehouse, StoreCustomer, DispenserItem } from '../lib/types';
 import { SearchableSelect } from '../components/SearchableSelect';
 
+interface LineItem {
+  key: string;
+  itemId: string;
+  quantity: string;
+}
+
+function newLine(): LineItem {
+  return { key: Math.random().toString(36).slice(2), itemId: '', quantity: '' };
+}
+
 export function NewRequest() {
   const { profile } = useAuth();
   const navigate = useNavigate();
@@ -15,8 +25,7 @@ export function NewRequest() {
 
   const [warehouseId, setWarehouseId] = useState('');
   const [storeId, setStoreId] = useState('');
-  const [itemId, setItemId] = useState('');
-  const [quantity, setQuantity] = useState('');
+  const [lines, setLines] = useState<LineItem[]>([newLine()]);
   const [requiredDate, setRequiredDate] = useState('');
   const [remarks, setRemarks] = useState('');
 
@@ -28,7 +37,7 @@ export function NewRequest() {
       const [wh, st, it] = await Promise.all([
         supabase.from('warehouses').select('*').eq('active', true).order('warehouse_name'),
         supabase.from('stores_customers').select('*').eq('active', true).order('customer_name'),
-        supabase.from('dispenser_items').select('*').eq('active', true).order('item_description'),
+        supabase.from('dispenser_items').select('*').eq('active', true).order('item_code'),
       ]);
       setWarehouses(wh.data || []);
       setStores(st.data || []);
@@ -37,6 +46,17 @@ export function NewRequest() {
   }, []);
 
   const selectedStore = stores.find((s) => s.id === storeId);
+  const itemOptions = items.map((i) => ({ value: i.id, label: i.item_code, sublabel: `${i.item_description} · ${i.uom}` }));
+
+  function updateLine(key: string, patch: Partial<LineItem>) {
+    setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  }
+  function addLine() {
+    setLines((ls) => [...ls, newLine()]);
+  }
+  function removeLine(key: string) {
+    setLines((ls) => (ls.length === 1 ? ls : ls.filter((l) => l.key !== key)));
+  }
 
   async function handleSubmit(asDraft: boolean) {
     setError(null);
@@ -44,10 +64,16 @@ export function NewRequest() {
 
     if (!storeId) return setError('Please select a Store/Customer.');
     if (!warehouseId) return setError('Please select a Warehouse Location.');
-    if (!itemId) return setError('Please select a Dispenser Item.');
     if (!requiredDate) return setError('Please enter the Required Date.');
-    const qty = Number(quantity);
-    if (!quantity || isNaN(qty) || qty <= 0) return setError('Quantity must be a number greater than zero.');
+
+    const usedItemIds = new Set<string>();
+    for (const line of lines) {
+      if (!line.itemId) return setError('Please select a dispenser item for every line.');
+      if (usedItemIds.has(line.itemId)) return setError('The same dispenser item was selected more than once. Please combine quantities into a single line.');
+      usedItemIds.add(line.itemId);
+      const qty = Number(line.quantity);
+      if (!line.quantity || isNaN(qty) || qty <= 0) return setError('Quantity must be a number greater than zero for every line.');
+    }
 
     setSubmitting(true);
     const { data: req, error: reqErr } = await supabase
@@ -69,11 +95,13 @@ export function NewRequest() {
       return setError(reqErr?.message || 'Failed to create request.');
     }
 
-    const { error: itemErr } = await supabase.from('dispenser_request_items').insert({
-      request_id: req.id,
-      item_id: itemId,
-      quantity_requested: qty,
-    });
+    const { error: itemErr } = await supabase.from('dispenser_request_items').insert(
+      lines.map((l) => ({
+        request_id: req.id,
+        item_id: l.itemId,
+        quantity_requested: Number(l.quantity),
+      }))
+    );
 
     setSubmitting(false);
     if (itemErr) return setError(itemErr.message);
@@ -85,7 +113,7 @@ export function NewRequest() {
     <div className="max-w-3xl">
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-[var(--ink)]">New Dispenser Request</h1>
-        <p className="text-sm text-[var(--ink-soft)] mt-1">Request No. and Request Date will be generated automatically on submit.</p>
+        <p className="text-sm text-[var(--ink-soft)] mt-1">Request No. and Request Date will be generated automatically on submit. You can add more than one dispenser item to a single request.</p>
       </div>
 
       <div className="bg-[var(--panel)] border border-[var(--line)] rounded-xl p-6 flex flex-col gap-6">
@@ -120,36 +148,55 @@ export function NewRequest() {
             <Grid className="mt-3">
               <Field label="Customer Code"><StaticValue>{selectedStore.customer_code}</StaticValue></Field>
               <Field label="Address"><StaticValue>{selectedStore.address || '—'}</StaticValue></Field>
-              <Field label="Contact Person"><StaticValue>{selectedStore.contact_person || '—'}</StaticValue></Field>
-              <Field label="Contact Number"><StaticValue>{selectedStore.contact_number || '—'}</StaticValue></Field>
             </Grid>
           )}
         </Section>
 
         <Section title="Dispenser Details">
-          <Grid>
-            <Field label="Dispenser Item *">
-              <SearchableSelect
-                value={itemId || null}
-                onChange={setItemId}
-                placeholder="Select dispenser item…"
-                options={items.map((i) => ({ value: i.id, label: i.item_description, sublabel: `${i.item_code} · ${i.uom}` }))}
-              />
-            </Field>
-            <Field label="Quantity Requested *">
-              <input
-                type="number"
-                min={1}
-                step={1}
-                required
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                className="input"
-                placeholder="e.g. 20"
-              />
-            </Field>
-          </Grid>
-          <Field label="Remarks" className="mt-3">
+          <div className="flex flex-col gap-3">
+            {lines.map((line, idx) => (
+              <div key={line.key} className="flex items-end gap-2">
+                <Field label={idx === 0 ? 'Dispenser Item *' : ''} className="flex-1 min-w-0">
+                  <SearchableSelect
+                    value={line.itemId || null}
+                    onChange={(v) => updateLine(line.key, { itemId: v })}
+                    placeholder="Select dispenser item…"
+                    options={itemOptions}
+                  />
+                </Field>
+                <Field label={idx === 0 ? 'Quantity *' : ''} className="w-32 shrink-0">
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    required
+                    value={line.quantity}
+                    onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
+                    className="input"
+                    placeholder="Qty"
+                  />
+                </Field>
+                <button
+                  type="button"
+                  onClick={() => removeLine(line.key)}
+                  disabled={lines.length === 1}
+                  className="h-[38px] px-2.5 rounded-md border border-[var(--line)] text-[var(--rust)] disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                  aria-label="Remove item"
+                  title="Remove item"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addLine}
+              className="self-start text-sm font-semibold text-[var(--brand)] hover:underline mt-1"
+            >
+              + Add another dispenser item
+            </button>
+          </div>
+          <Field label="Remarks" className="mt-4">
             <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} className="input" rows={3} placeholder="Optional notes for the warehouse" />
           </Field>
         </Section>
@@ -194,7 +241,7 @@ function Grid({ children, className = '' }: { children: React.ReactNode; classNa
 function Field({ label, children, className = '' }: { label: string; children: React.ReactNode; className?: string }) {
   return (
     <label className={`flex flex-col gap-1 ${className}`}>
-      <span className="text-xs font-medium text-[var(--ink-soft)]">{label}</span>
+      {label && <span className="text-xs font-medium text-[var(--ink-soft)]">{label}</span>}
       {children}
     </label>
   );

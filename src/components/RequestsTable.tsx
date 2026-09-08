@@ -43,7 +43,10 @@ export function RequestsTable({
           </thead>
           <tbody>
             {requests.map((r) => {
-              const item = r.dispenser_request_items?.[0];
+              const lineItems = r.dispenser_request_items || [];
+              const firstItem = lineItems[0];
+              const extraCount = lineItems.length - 1;
+              const totalQty = lineItems.reduce((sum, li) => sum + Number(li.quantity_requested || 0), 0);
               const overdue = daysOverdue(r);
               return (
                 <tr key={r.id} className="border-b border-[var(--line)] last:border-0 hover:bg-[#f9faf9]">
@@ -55,9 +58,12 @@ export function RequestsTable({
                   {has('requested_by') && <td className="px-4 py-3 text-[var(--ink)]">{r.users?.name || '—'}</td>}
                   {has('warehouse') && <td className="px-4 py-3 text-[var(--ink)] whitespace-nowrap">{r.warehouses?.warehouse_name}</td>}
                   {has('item') && (
-                    <td className="px-4 py-3 text-[var(--ink)]">{item?.dispenser_items?.item_description || '—'}</td>
+                    <td className="px-4 py-3 text-[var(--ink)]">
+                      <span className="font-mono-tag font-semibold">{firstItem?.dispenser_items?.item_code || '—'}</span>
+                      {extraCount > 0 && <span className="text-xs text-[var(--ink-soft)] ml-1">+{extraCount} more</span>}
+                    </td>
                   )}
-                  {has('qty') && <td className="px-4 py-3 text-[var(--ink)] font-mono-tag">{item?.quantity_requested ?? '—'}</td>}
+                  {has('qty') && <td className="px-4 py-3 text-[var(--ink)] font-mono-tag">{totalQty || '—'}</td>}
                   {has('required_date') && <td className="px-4 py-3 text-[var(--ink-soft)] whitespace-nowrap">{fmtDate(r.required_date)}</td>}
                   {has('status') && (
                     <td className="px-4 py-3 whitespace-nowrap">

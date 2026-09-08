@@ -66,7 +66,7 @@ export function MyRequests() {
         />
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-[var(--line)] rounded-md px-3 py-2 text-sm bg-white">
           <option value="">All Statuses</option>
-          {['draft', 'submitted', 'received', 'preparing', 'prepared', 'released', 'completed', 'cancelled'].map((s) => (
+          {['draft', 'submitted', 'approved', 'preparing', 'prepared', 'released', 'completed', 'cancelled'].map((s) => (
             <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>
           ))}
         </select>

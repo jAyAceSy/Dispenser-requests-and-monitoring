@@ -4,7 +4,7 @@ import { STATUS_LABEL } from '../lib/types';
 const STYLES: Record<RequestStatus, string> = {
   draft: 'bg-slate-100 text-slate-600 border-slate-300',
   submitted: 'bg-sky-50 text-sky-700 border-sky-200',
-  received: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  approved: 'bg-indigo-50 text-indigo-700 border-indigo-200',
   preparing: 'bg-amber-50 text-amber-800 border-amber-200',
   prepared: 'bg-teal-50 text-teal-800 border-teal-200',
   released: 'bg-violet-50 text-violet-800 border-violet-200',

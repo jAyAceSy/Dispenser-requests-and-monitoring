@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { DispenserItem } from '../../lib/types';
+import { BulkUploadModal } from '../../components/BulkUploadModal';
 
 const empty = { item_code: '', item_description: '', category: '', uom: 'PC' };
 
@@ -8,6 +9,7 @@ export function Items() {
   const [items, setItems] = useState<DispenserItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
   const [editing, setEditing] = useState<DispenserItem | null>(null);
   const [form, setForm] = useState(empty);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +47,27 @@ export function Items() {
     load();
   }
 
+  async function handleBulkUpload(rows: Record<string, string>[]) {
+    let success = 0;
+    const failed: { row: number; reason: string }[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const code = r['item_code']?.trim();
+      const desc = r['item_description']?.trim();
+      if (!code || !desc) {
+        failed.push({ row: i + 2, reason: 'Missing item_code or item_description' });
+        continue;
+      }
+      const { error: err } = await supabase.from('dispenser_items').upsert(
+        { item_code: code, item_description: desc, category: r['category']?.trim() || null, uom: r['uom']?.trim() || 'PC' },
+        { onConflict: 'item_code' }
+      );
+      if (err) failed.push({ row: i + 2, reason: err.message });
+      else success++;
+    }
+    return { success, failed };
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -52,10 +75,27 @@ export function Items() {
           <h1 className="text-xl font-semibold text-[var(--ink)]">Dispenser Items</h1>
           <p className="text-sm text-[var(--ink-soft)] mt-1">Only active items appear when creating new requests.</p>
         </div>
-        <button onClick={openNew} className="bg-[var(--brand)] hover:bg-[var(--brand-dark)] text-white text-sm font-semibold rounded-md px-4 py-2.5">
-          + Add Dispenser Item
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowUpload(true)} className="border border-[var(--line)] text-sm font-medium rounded-md px-4 py-2.5 hover:bg-[#eef1f0]">
+            Bulk Upload
+          </button>
+          <button onClick={openNew} className="bg-[var(--brand)] hover:bg-[var(--brand-dark)] text-white text-sm font-semibold rounded-md px-4 py-2.5">
+            + Add Dispenser Item
+          </button>
+        </div>
       </div>
+
+      {showUpload && (
+        <BulkUploadModal
+          title="Bulk Upload Dispenser Items"
+          templateFilename="dispenser_items_template.csv"
+          templateSampleRow={{ item_code: 'DSP-006', item_description: 'Sample Dispenser', category: 'Dispenser', uom: 'PC' }}
+          requiredHeaders={['item_code', 'item_description']}
+          onUpload={handleBulkUpload}
+          onDone={load}
+          onClose={() => setShowUpload(false)}
+        />
+      )}
 
       {showForm && (
         <div className="bg-[var(--panel)] border border-[var(--line)] rounded-xl p-5 mb-4">

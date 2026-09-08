@@ -82,9 +82,12 @@ export function Login() {
                     <select value={role} onChange={(e) => setRole(e.target.value)} className="input">
                       <option value="insti_team">Insti Team</option>
                       <option value="warehouse_officer">Warehouse Officer</option>
-                      <option value="admin">Admin / Inventory Analyst</option>
+                      <option value="approving_officer">Approving Officer</option>
                     </select>
                   </Field>
+                  <p className="text-xs text-[var(--ink-soft)] -mt-2">
+                    Admin accounts are assigned by an existing Admin, not through sign up.
+                  </p>
                   <Field label="Department (optional)">
                     <input value={department} onChange={(e) => setDepartment(e.target.value)} className="input" placeholder="Installation Team" />
                   </Field>

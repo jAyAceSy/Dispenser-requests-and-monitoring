@@ -39,11 +39,16 @@ export function SearchableSelect({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full text-left border border-[var(--line)] rounded-md px-3 py-2 text-sm bg-white flex items-center justify-between"
+        className="w-full text-left border border-[var(--line)] rounded-md px-3 py-2 text-sm bg-white flex items-center justify-between gap-2"
       >
-        <span className={selected ? 'text-[var(--ink)]' : 'text-[var(--ink-soft)]'}>
-          {selected ? selected.label : placeholder}
-        </span>
+        {selected ? (
+          <span className="flex items-baseline gap-2 min-w-0">
+            <span className="text-[var(--ink)] font-semibold font-mono-tag shrink-0">{selected.label}</span>
+            {selected.sublabel && <span className="text-[var(--ink-soft)] text-xs truncate">{selected.sublabel}</span>}
+          </span>
+        ) : (
+          <span className="text-[var(--ink-soft)]">{placeholder}</span>
+        )}
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--ink-soft)] shrink-0">
           <path d="M6 9l6 6 6-6" />
         </svg>
@@ -70,7 +75,7 @@ export function SearchableSelect({
                 }}
                 className="w-full text-left px-3 py-2 text-sm hover:bg-[#eef1f0] flex flex-col"
               >
-                <span className="text-[var(--ink)]">{o.label}</span>
+                <span className="text-[var(--ink)] font-semibold">{o.label}</span>
                 {o.sublabel && <span className="text-xs text-[var(--ink-soft)]">{o.sublabel}</span>}
               </button>
             ))}

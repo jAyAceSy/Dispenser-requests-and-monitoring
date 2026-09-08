@@ -1,11 +1,20 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { fetchRequestById, fetchHistory } from '../lib/queries';
 import type { DispenserRequest, RequestHistoryEntry } from '../lib/types';
+import { hasRole } from '../lib/types';
 import { StatusBadge, OverdueBadge } from '../components/StatusBadge';
 import { fmtDate, fmtDateTime, daysOverdue } from '../lib/utils';
+
+interface LineState {
+  prepared: string;
+  varianceReason: string;
+  prepRemarks: string;
+  released: string;
+  releaseVarianceReason: string;
+}
 
 export function RequestDetail() {
   const { id } = useParams<{ id: string }>();
@@ -17,16 +26,12 @@ export function RequestDetail() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // form state
-  const [actualPrepared, setActualPrepared] = useState('');
-  const [varianceReason, setVarianceReason] = useState('');
-  const [prepRemarks, setPrepRemarks] = useState('');
-  const [actualReleased, setActualReleased] = useState('');
-  const [releaseVarianceReason, setReleaseVarianceReason] = useState('');
+  const [lineState, setLineState] = useState<Record<string, LineState>>({});
   const [receivedByCustomer, setReceivedByCustomer] = useState('');
   const [releaseRemarks, setReleaseRemarks] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [showCancelForm, setShowCancelForm] = useState(false);
+  const [approveNote, setApproveNote] = useState('');
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -34,9 +39,19 @@ export function RequestDetail() {
     setReq(r as DispenserRequest | null);
     setHistory(h as RequestHistoryEntry[]);
     if (r) {
-      const item = (r as DispenserRequest).dispenser_request_items?.[0];
-      setActualPrepared(item?.quantity_prepared?.toString() || '');
-      setActualReleased(item?.quantity_released?.toString() || item?.quantity_prepared?.toString() || '');
+      const items = (r as DispenserRequest).dispenser_request_items || [];
+      const initial: Record<string, LineState> = {};
+      for (const li of items) {
+        initial[li.id] = {
+          prepared: li.quantity_prepared?.toString() || '',
+          varianceReason: li.variance_reason || '',
+          prepRemarks: li.preparation_remarks || '',
+          released: li.quantity_released?.toString() || li.quantity_prepared?.toString() || '',
+          releaseVarianceReason: li.release_variance_reason || '',
+        };
+      }
+      setLineState(initial);
+      setReceivedByCustomer(items[0]?.received_by_customer || '');
     }
     setLoading(false);
   }, [id]);
@@ -46,11 +61,13 @@ export function RequestDetail() {
   if (loading) return <div className="bg-[var(--panel)] border border-[var(--line)] rounded-xl h-64 animate-pulse" />;
   if (!req) return <div className="text-sm text-[var(--ink-soft)]">Request not found, or you don't have access to it.</div>;
 
-  const item = req.dispenser_request_items?.[0];
+  const lineItems = req.dispenser_request_items || [];
   const isOwner = profile?.id === req.requested_by;
-  const isAssignedOfficer = profile?.role === 'warehouse_officer' && profile.warehouse_id === req.warehouse_id;
-  const isAdmin = profile?.role === 'admin';
+  const isAssignedOfficer = hasRole(profile, 'warehouse_officer') && profile?.warehouse_id === req.warehouse_id;
+  const isAdmin = hasRole(profile, 'admin');
+  const isApprovingOfficer = hasRole(profile, 'approving_officer');
   const overdue = daysOverdue(req);
+  const canPrint = ['approved', 'preparing', 'prepared', 'released', 'completed'].includes(req.status);
 
   async function updateStatus(newStatus: DispenserRequest['status'], extra: Record<string, any> = {}) {
     setBusy(true);
@@ -61,8 +78,8 @@ export function RequestDetail() {
     await load();
   }
 
-  async function handleReceive() {
-    await updateStatus('received');
+  async function handleApprove() {
+    await updateStatus('approved', { approved_by: profile!.id, approved_at: new Date().toISOString(), remarks: approveNote || req!.remarks });
   }
 
   async function handleStartPreparation() {
@@ -71,50 +88,70 @@ export function RequestDetail() {
 
   async function handleMarkPrepared() {
     setError(null);
-    const qty = Number(actualPrepared);
-    if (!actualPrepared || isNaN(qty) || qty < 0) return setError('Enter a valid Actual Quantity Prepared.');
-    const requestedQty = Number(item?.quantity_requested || 0);
-    if (qty !== requestedQty && !varianceReason.trim()) {
-      return setError(`Quantity Prepared (${qty}) differs from Quantity Requested (${requestedQty}). A variance reason is required.`);
+    for (const li of lineItems) {
+      const st = lineState[li.id];
+      const qty = Number(st?.prepared);
+      if (!st?.prepared || isNaN(qty) || qty < 0) {
+        return setError(`Enter a valid Actual Quantity Prepared for ${li.dispenser_items?.item_code}.`);
+      }
+      const requestedQty = Number(li.quantity_requested || 0);
+      if (qty !== requestedQty && !st.varianceReason.trim()) {
+        return setError(`${li.dispenser_items?.item_code}: prepared quantity (${qty}) differs from requested (${requestedQty}). A variance reason is required.`);
+      }
     }
     setBusy(true);
-    const { error: itemErr } = await supabase
-      .from('dispenser_request_items')
-      .update({
-        quantity_prepared: qty,
-        variance_reason: qty !== requestedQty ? varianceReason : null,
-        preparation_remarks: prepRemarks || null,
-        prepared_by: profile!.id,
-        prepared_at: new Date().toISOString(),
-      })
-      .eq('id', item!.id);
-    if (itemErr) { setBusy(false); setError(itemErr.message); return; }
+    for (const li of lineItems) {
+      const st = lineState[li.id];
+      const qty = Number(st.prepared);
+      const requestedQty = Number(li.quantity_requested || 0);
+      const { error: itemErr } = await supabase
+        .from('dispenser_request_items')
+        .update({
+          quantity_prepared: qty,
+          variance_reason: qty !== requestedQty ? st.varianceReason : null,
+          preparation_remarks: st.prepRemarks || null,
+          prepared_by: profile!.id,
+          prepared_at: new Date().toISOString(),
+        })
+        .eq('id', li.id);
+      if (itemErr) { setBusy(false); setError(itemErr.message); return; }
+    }
     await updateStatus('prepared');
     setBusy(false);
   }
 
   async function handleRelease() {
     setError(null);
-    const qty = Number(actualReleased);
-    if (!actualReleased || isNaN(qty) || qty < 0) return setError('Enter a valid Actual Quantity Released.');
-    const preparedQty = Number(item?.quantity_prepared || 0);
-    if (qty !== preparedQty && !releaseVarianceReason.trim()) {
-      return setError(`Quantity Released (${qty}) differs from Quantity Prepared (${preparedQty}). A reason is required.`);
+    if (!receivedByCustomer.trim()) return setError('Enter who received the dispensers (Received By).');
+    for (const li of lineItems) {
+      const st = lineState[li.id];
+      const qty = Number(st?.released);
+      if (!st?.released || isNaN(qty) || qty < 0) {
+        return setError(`Enter a valid Actual Quantity Released for ${li.dispenser_items?.item_code}.`);
+      }
+      const preparedQty = Number(li.quantity_prepared || 0);
+      if (qty !== preparedQty && !st.releaseVarianceReason.trim()) {
+        return setError(`${li.dispenser_items?.item_code}: released quantity (${qty}) differs from prepared (${preparedQty}). A reason is required.`);
+      }
     }
-    if (!receivedByCustomer.trim()) return setError('Enter who received the dispenser (Received By).');
     setBusy(true);
-    const { error: itemErr } = await supabase
-      .from('dispenser_request_items')
-      .update({
-        quantity_released: qty,
-        release_variance_reason: qty !== preparedQty ? releaseVarianceReason : null,
-        release_remarks: releaseRemarks || null,
-        received_by_customer: receivedByCustomer,
-        released_by: profile!.id,
-        released_at: new Date().toISOString(),
-      })
-      .eq('id', item!.id);
-    if (itemErr) { setBusy(false); setError(itemErr.message); return; }
+    for (const li of lineItems) {
+      const st = lineState[li.id];
+      const qty = Number(st.released);
+      const preparedQty = Number(li.quantity_prepared || 0);
+      const { error: itemErr } = await supabase
+        .from('dispenser_request_items')
+        .update({
+          quantity_released: qty,
+          release_variance_reason: qty !== preparedQty ? st.releaseVarianceReason : null,
+          release_remarks: releaseRemarks || null,
+          received_by_customer: receivedByCustomer,
+          released_by: profile!.id,
+          released_at: new Date().toISOString(),
+        })
+        .eq('id', li.id);
+      if (itemErr) { setBusy(false); setError(itemErr.message); return; }
+    }
     await updateStatus('released');
     setBusy(false);
   }
@@ -144,11 +181,18 @@ export function RequestDetail() {
           </div>
           <p className="text-sm text-[var(--ink-soft)] mt-1">Created {fmtDateTime(req.created_at)} by {req.users?.name}</p>
         </div>
-        {canCancel && !showCancelForm && (
-          <button onClick={() => setShowCancelForm(true)} className="text-sm font-medium text-[var(--rust)] border border-red-200 bg-red-50 rounded-md px-3 py-2 hover:bg-red-100">
-            Cancel Request
-          </button>
-        )}
+        <div className="flex gap-2">
+          {canPrint && (
+            <Link to={`/print/${req.id}`} target="_blank" className="text-sm font-medium border border-[var(--line)] rounded-md px-3 py-2 hover:bg-[#eef1f0]">
+              Print Form
+            </Link>
+          )}
+          {canCancel && !showCancelForm && (
+            <button onClick={() => setShowCancelForm(true)} className="text-sm font-medium text-[var(--rust)] border border-red-200 bg-red-50 rounded-md px-3 py-2 hover:bg-red-100">
+              Cancel Request
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <div className="text-sm text-[var(--rust)] bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-4">{error}</div>}
@@ -187,18 +231,19 @@ export function RequestDetail() {
           <Info label="Customer Code" value={req.customer_code_snapshot || '—'} mono />
           <Info label="Store / Customer" value={req.customer_name_snapshot || '—'} />
           <Info label="Address" value={req.customer_address_snapshot || '—'} />
-          <Info label="Contact Person" value={req.customer_contact_person_snapshot || '—'} />
-          <Info label="Contact Number" value={req.customer_contact_number_snapshot || '—'} />
         </Grid>
       </Panel>
 
-      <Panel title="Dispenser Details">
-        <Grid>
-          <Info label="Dispenser Item" value={item?.dispenser_items?.item_description || '—'} />
-          <Info label="Item Code" value={item?.dispenser_items?.item_code || '—'} mono />
-          <Info label="Unit of Measure" value={item?.dispenser_items?.uom || '—'} />
-          <Info label="Quantity Requested" value={item?.quantity_requested?.toString() || '—'} mono />
-        </Grid>
+      <Panel title={lineItems.length > 1 ? 'Dispenser Details (Multiple Items)' : 'Dispenser Details'}>
+        <div className="flex flex-col gap-4">
+          {lineItems.map((li) => (
+            <div key={li.id} className="flex items-baseline gap-3 border-b border-[var(--line)] last:border-0 pb-3 last:pb-0">
+              <span className="font-mono-tag font-semibold text-[var(--ink)]">{li.dispenser_items?.item_code}</span>
+              <span className="text-sm text-[var(--ink-soft)]">{li.dispenser_items?.item_description}</span>
+              <span className="ml-auto text-sm font-mono-tag text-[var(--ink)]">{li.quantity_requested} {li.dispenser_items?.uom}</span>
+            </div>
+          ))}
+        </div>
         {req.remarks && (
           <div className="mt-3">
             <Info label="Remarks" value={req.remarks} />
@@ -206,22 +251,31 @@ export function RequestDetail() {
         )}
       </Panel>
 
-      {/* WAREHOUSE OFFICER ACTIONS */}
-      {isAssignedOfficer && req.status === 'submitted' && (
-        <Panel title="Receive Request" tone="action">
-          <p className="text-sm text-[var(--ink-soft)] mb-3">Acknowledge that this request has arrived at your warehouse.</p>
-          <ConfirmButton
-            label="Receive Request"
-            busy={busy}
-            onConfirm={handleReceive}
-            confirmText="Mark this request as RECEIVED?"
-          />
+      {/* APPROVING OFFICER ACTION */}
+      {isApprovingOfficer && req.status === 'submitted' && (
+        <Panel title="Approval" tone="action">
+          <p className="text-sm text-[var(--ink-soft)] mb-3">Review this request before it's routed to the warehouse for fulfillment.</p>
+          <Field label="Approval Note (optional)">
+            <textarea value={approveNote} onChange={(e) => setApproveNote(e.target.value)} className="input" rows={2} placeholder="Any notes to attach to this approval" />
+          </Field>
+          <div className="flex justify-end mt-3">
+            <ConfirmButton label="Approve Request" busy={busy} onConfirm={handleApprove} confirmText="Approve this request and route it to the warehouse?" />
+          </div>
         </Panel>
       )}
+      {req.status === 'submitted' && !isApprovingOfficer && (
+        <div className="bg-sky-50 border border-sky-200 text-sky-800 text-sm rounded-lg px-4 py-3 mb-4">
+          This request is waiting for an Approving Officer to review it before the warehouse can begin work.
+        </div>
+      )}
+      {req.approved_at && (
+        <div className="text-xs text-[var(--ink-soft)] -mt-2 mb-4">Approved {fmtDateTime(req.approved_at)}</div>
+      )}
 
-      {isAssignedOfficer && req.status === 'received' && (
+      {/* WAREHOUSE OFFICER ACTIONS */}
+      {isAssignedOfficer && req.status === 'approved' && (
         <Panel title="Preparation" tone="action">
-          <p className="text-sm text-[var(--ink-soft)] mb-3">Start preparing the requested dispenser.</p>
+          <p className="text-sm text-[var(--ink-soft)] mb-3">This request has been approved and routed to your warehouse. Start preparing the requested dispensers.</p>
           <ConfirmButton label="Start Preparation" busy={busy} onConfirm={handleStartPreparation} confirmText="Start preparation for this request?" />
         </Panel>
       )}
@@ -231,19 +285,35 @@ export function RequestDetail() {
           <Grid>
             <Info label="Prepared By" value={profile?.name || '—'} />
             <Info label="Preparation Date" value={fmtDate(new Date().toISOString())} />
-            <Info label="Quantity Requested" value={item?.quantity_requested?.toString() || '—'} mono />
-            <Field label="Actual Quantity Prepared *">
-              <input type="number" min={0} value={actualPrepared} onChange={(e) => setActualPrepared(e.target.value)} className="input" />
-            </Field>
           </Grid>
-          {Number(actualPrepared) !== Number(item?.quantity_requested || 0) && actualPrepared !== '' && (
-            <Field label="Variance Reason *" className="mt-3">
-              <textarea value={varianceReason} onChange={(e) => setVarianceReason(e.target.value)} className="input" rows={2} placeholder="e.g. Only 18 units available in warehouse." />
-            </Field>
-          )}
-          <Field label="Preparation Remarks" className="mt-3">
-            <textarea value={prepRemarks} onChange={(e) => setPrepRemarks(e.target.value)} className="input" rows={2} />
-          </Field>
+          <div className="flex flex-col gap-4 mt-4">
+            {lineItems.map((li) => {
+              const st = lineState[li.id];
+              const differs = st?.prepared !== '' && Number(st?.prepared) !== Number(li.quantity_requested || 0);
+              return (
+                <div key={li.id} className="border border-[var(--line)] rounded-lg p-3">
+                  <div className="flex items-baseline gap-2 mb-2">
+                    <span className="font-mono-tag font-semibold text-sm">{li.dispenser_items?.item_code}</span>
+                    <span className="text-xs text-[var(--ink-soft)]">{li.dispenser_items?.item_description}</span>
+                    <span className="ml-auto text-xs text-[var(--ink-soft)]">Requested: {li.quantity_requested}</span>
+                  </div>
+                  <Grid>
+                    <Field label="Actual Quantity Prepared *">
+                      <input type="number" min={0} value={st?.prepared || ''} onChange={(e) => setLineState((s) => ({ ...s, [li.id]: { ...s[li.id], prepared: e.target.value } }))} className="input" />
+                    </Field>
+                    <Field label="Preparation Remarks">
+                      <input value={st?.prepRemarks || ''} onChange={(e) => setLineState((s) => ({ ...s, [li.id]: { ...s[li.id], prepRemarks: e.target.value } }))} className="input" />
+                    </Field>
+                  </Grid>
+                  {differs && (
+                    <Field label="Variance Reason *" className="mt-2">
+                      <textarea value={st?.varianceReason || ''} onChange={(e) => setLineState((s) => ({ ...s, [li.id]: { ...s[li.id], varianceReason: e.target.value } }))} className="input" rows={2} placeholder="e.g. Only 18 units available in warehouse." />
+                    </Field>
+                  )}
+                </div>
+              );
+            })}
+          </div>
           <div className="flex justify-end mt-3">
             <ConfirmButton label="Mark as Prepared" busy={busy} onConfirm={handleMarkPrepared} confirmText="Mark this request as PREPARED?" />
           </div>
@@ -252,25 +322,39 @@ export function RequestDetail() {
 
       {isAssignedOfficer && req.status === 'prepared' && (
         <Panel title="Release" tone="action">
-          <Grid>
-            <Info label="Prepared Quantity" value={item?.quantity_prepared?.toString() || '—'} mono />
-            <Field label="Actual Quantity Released *">
-              <input type="number" min={0} value={actualReleased} onChange={(e) => setActualReleased(e.target.value)} className="input" />
-            </Field>
+          <div className="flex flex-col gap-4">
+            {lineItems.map((li) => {
+              const st = lineState[li.id];
+              const differs = st?.released !== '' && Number(st?.released) !== Number(li.quantity_prepared || 0);
+              return (
+                <div key={li.id} className="border border-[var(--line)] rounded-lg p-3">
+                  <div className="flex items-baseline gap-2 mb-2">
+                    <span className="font-mono-tag font-semibold text-sm">{li.dispenser_items?.item_code}</span>
+                    <span className="text-xs text-[var(--ink-soft)]">{li.dispenser_items?.item_description}</span>
+                    <span className="ml-auto text-xs text-[var(--ink-soft)]">Prepared: {li.quantity_prepared}</span>
+                  </div>
+                  <Field label="Actual Quantity Released *">
+                    <input type="number" min={0} value={st?.released || ''} onChange={(e) => setLineState((s) => ({ ...s, [li.id]: { ...s[li.id], released: e.target.value } }))} className="input" />
+                  </Field>
+                  {differs && (
+                    <Field label="Reason for Variance *" className="mt-2">
+                      <textarea value={st?.releaseVarianceReason || ''} onChange={(e) => setLineState((s) => ({ ...s, [li.id]: { ...s[li.id], releaseVarianceReason: e.target.value } }))} className="input" rows={2} />
+                    </Field>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <Grid className="mt-3">
             <Field label="Received By *">
               <input value={receivedByCustomer} onChange={(e) => setReceivedByCustomer(e.target.value)} className="input" placeholder="Name of person receiving" />
             </Field>
-          </Grid>
-          {Number(actualReleased) !== Number(item?.quantity_prepared || 0) && actualReleased !== '' && (
-            <Field label="Reason for Variance *" className="mt-3">
-              <textarea value={releaseVarianceReason} onChange={(e) => setReleaseVarianceReason(e.target.value)} className="input" rows={2} />
+            <Field label="Release Remarks">
+              <input value={releaseRemarks} onChange={(e) => setReleaseRemarks(e.target.value)} className="input" />
             </Field>
-          )}
-          <Field label="Release Remarks" className="mt-3">
-            <textarea value={releaseRemarks} onChange={(e) => setReleaseRemarks(e.target.value)} className="input" rows={2} />
-          </Field>
+          </Grid>
           <div className="flex justify-end mt-3">
-            <ConfirmButton label="Release" busy={busy} onConfirm={handleRelease} confirmText="Confirm release of this dispenser?" />
+            <ConfirmButton label="Release" busy={busy} onConfirm={handleRelease} confirmText="Confirm release of these dispensers?" />
           </div>
         </Panel>
       )}
@@ -286,28 +370,37 @@ export function RequestDetail() {
         <Panel title="Completion">
           <Grid>
             <Info label="Completed Date" value={fmtDateTime(req.completed_at)} />
-            <Info label="Quantity Released" value={item?.quantity_released?.toString() || '—'} mono />
-            <Info label="Received By" value={item?.received_by_customer || '—'} />
+            <Info label="Received By" value={lineItems[0]?.received_by_customer || '—'} />
           </Grid>
         </Panel>
       )}
 
-      {(item?.quantity_prepared != null || item?.quantity_released != null) && req.status !== 'draft' && (
+      {lineItems.some((li) => li.quantity_prepared != null || li.quantity_released != null) && (
         <Panel title="Quantity Monitoring">
-          <Grid>
-            <Info label="Quantity Requested" value={item?.quantity_requested?.toString() || '—'} mono />
-            <Info label="Quantity Prepared" value={item?.quantity_prepared?.toString() || '—'} mono />
-            <Info label="Quantity Released" value={item?.quantity_released?.toString() || '—'} mono />
-          </Grid>
-          {item?.variance_reason && <div className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">Preparation variance: {item.variance_reason}</div>}
-          {item?.release_variance_reason && <div className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">Release variance: {item.release_variance_reason}</div>}
+          <div className="flex flex-col gap-3">
+            {lineItems.map((li) => (
+              <div key={li.id}>
+                <div className="flex items-baseline gap-2 mb-1">
+                  <span className="font-mono-tag font-semibold text-sm">{li.dispenser_items?.item_code}</span>
+                  <span className="text-xs text-[var(--ink-soft)]">{li.dispenser_items?.item_description}</span>
+                </div>
+                <Grid>
+                  <Info label="Requested" value={li.quantity_requested?.toString() || '—'} mono />
+                  <Info label="Prepared" value={li.quantity_prepared?.toString() || '—'} mono />
+                  <Info label="Released" value={li.quantity_released?.toString() || '—'} mono />
+                </Grid>
+                {li.variance_reason && <div className="mt-1 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">Preparation variance: {li.variance_reason}</div>}
+                {li.release_variance_reason && <div className="mt-1 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">Release variance: {li.release_variance_reason}</div>}
+              </div>
+            ))}
+          </div>
         </Panel>
       )}
 
       {isOwner && req.status === 'draft' && (
         <Panel title="Submit Draft" tone="action">
-          <p className="text-sm text-[var(--ink-soft)] mb-3">This request is saved as a draft and hasn't been routed to the warehouse yet.</p>
-          <ConfirmButton label="Submit Request" busy={busy} onConfirm={() => updateStatus('submitted')} confirmText="Submit this request to the warehouse now?" />
+          <p className="text-sm text-[var(--ink-soft)] mb-3">This request is saved as a draft and hasn't been submitted for approval yet.</p>
+          <ConfirmButton label="Submit Request" busy={busy} onConfirm={() => updateStatus('submitted')} confirmText="Submit this request for approval now?" />
         </Panel>
       )}
 
@@ -345,8 +438,8 @@ function Panel({ title, children, tone = 'default' }: { title: string; children:
   );
 }
 
-function Grid({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-2 gap-4">{children}</div>;
+function Grid({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return <div className={`grid grid-cols-2 gap-4 ${className}`}>{children}</div>;
 }
 
 function Info({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {

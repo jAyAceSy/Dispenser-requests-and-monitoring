@@ -1,9 +1,9 @@
-export type UserRole = 'insti_team' | 'warehouse_officer' | 'admin';
+export type UserRole = 'insti_team' | 'warehouse_officer' | 'admin' | 'approving_officer';
 
 export type RequestStatus =
   | 'draft'
   | 'submitted'
-  | 'received'
+  | 'approved'
   | 'preparing'
   | 'prepared'
   | 'released'
@@ -15,10 +15,19 @@ export interface AppUser {
   name: string;
   email: string;
   role: UserRole;
+  roles: UserRole[];
   department: string | null;
   warehouse_id: string | null;
   active: boolean;
   created_at: string;
+}
+
+export function hasRole(profile: Pick<AppUser, 'roles'> | null | undefined, role: UserRole): boolean {
+  return !!profile?.roles?.includes(role);
+}
+
+export function hasAnyRole(profile: Pick<AppUser, 'roles'> | null | undefined, roles: UserRole[]): boolean {
+  return !!profile && roles.some((r) => profile.roles?.includes(r));
 }
 
 export interface Warehouse {
@@ -92,6 +101,8 @@ export interface DispenserRequest {
   cancellation_reason: string | null;
   cancelled_by: string | null;
   cancelled_at: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
   completed_by: string | null;
   completed_at: string | null;
   created_at: string;
@@ -116,10 +127,17 @@ export interface RequestHistoryEntry {
 export const STATUS_LABEL: Record<RequestStatus, string> = {
   draft: 'Draft',
   submitted: 'Submitted',
-  received: 'Received',
+  approved: 'Approved',
   preparing: 'Preparing',
   prepared: 'Prepared',
   released: 'Released',
   completed: 'Completed',
   cancelled: 'Cancelled',
+};
+
+export const ROLE_LABEL: Record<UserRole, string> = {
+  insti_team: 'Insti Team',
+  warehouse_officer: 'Warehouse Officer',
+  admin: 'Admin / Inventory Analyst',
+  approving_officer: 'Approving Officer',
 };

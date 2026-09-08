@@ -27,7 +27,7 @@ export function IncomingRequests() {
   useEffect(() => {
     if (!profile?.warehouse_id) { setLoading(false); return; }
     fetchRequests({ warehouseId: profile.warehouse_id }).then((data) => {
-      setRequests((data as DispenserRequest[]).filter((r) => r.status !== 'draft'));
+      setRequests((data as DispenserRequest[]).filter((r) => !['draft', 'submitted'].includes(r.status)));
       setLoading(false);
     });
   }, [profile?.warehouse_id]);
@@ -65,7 +65,7 @@ export function IncomingRequests() {
         />
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-[var(--line)] rounded-md px-3 py-2 text-sm bg-white">
           <option value="">All Statuses</option>
-          {['submitted', 'received', 'preparing', 'prepared', 'released', 'completed', 'cancelled'].map((s) => (
+          {['approved', 'preparing', 'prepared', 'released', 'completed', 'cancelled'].map((s) => (
             <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>
           ))}
         </select>

@@ -45,24 +45,48 @@ export function AllRequests() {
   });
 
   function exportCsv() {
-    downloadCsv(
-      `dispenser-requests-${new Date().toISOString().slice(0, 10)}.csv`,
-      filtered.map((r) => ({
-        request_no: r.request_no,
-        request_date: r.created_at,
-        store_customer: r.customer_name_snapshot,
-        customer_code: r.customer_code_snapshot,
-        requested_by: r.users?.name,
-        warehouse: r.warehouses?.warehouse_name,
-        item: r.dispenser_request_items?.[0]?.dispenser_items?.item_description,
-        qty_requested: r.dispenser_request_items?.[0]?.quantity_requested,
-        qty_prepared: r.dispenser_request_items?.[0]?.quantity_prepared,
-        qty_released: r.dispenser_request_items?.[0]?.quantity_released,
-        required_date: r.required_date,
-        status: r.status,
-        days_overdue: daysOverdue(r),
-      }))
-    );
+    const rows: Record<string, any>[] = [];
+    for (const r of filtered) {
+      const lineItems = r.dispenser_request_items || [];
+      if (lineItems.length === 0) {
+        rows.push({
+          request_no: r.request_no,
+          request_date: r.created_at.slice(0, 10),
+          store_customer: r.customer_name_snapshot,
+          customer_code: r.customer_code_snapshot,
+          requested_by: r.users?.name,
+          warehouse: r.warehouses?.warehouse_name,
+          item_code: '',
+          item_description: '',
+          qty_requested: '',
+          qty_prepared: '',
+          qty_released: '',
+          required_date: r.required_date,
+          status: r.status,
+          days_overdue: daysOverdue(r),
+        });
+        continue;
+      }
+      for (const li of lineItems) {
+        rows.push({
+          request_no: r.request_no,
+          request_date: r.created_at.slice(0, 10),
+          store_customer: r.customer_name_snapshot,
+          customer_code: r.customer_code_snapshot,
+          requested_by: r.users?.name,
+          warehouse: r.warehouses?.warehouse_name,
+          item_code: li.dispenser_items?.item_code,
+          item_description: li.dispenser_items?.item_description,
+          qty_requested: li.quantity_requested,
+          qty_prepared: li.quantity_prepared,
+          qty_released: li.quantity_released,
+          required_date: r.required_date,
+          status: r.status,
+          days_overdue: daysOverdue(r),
+        });
+      }
+    }
+    downloadCsv(`dispenser-requests-${new Date().toISOString().slice(0, 10)}.csv`, rows);
   }
 
   return (
@@ -86,7 +110,7 @@ export function AllRequests() {
         />
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-[var(--line)] rounded-md px-3 py-2 text-sm bg-white">
           <option value="">All Statuses</option>
-          {['draft', 'submitted', 'received', 'preparing', 'prepared', 'released', 'completed', 'cancelled'].map((s) => (
+          {['draft', 'submitted', 'approved', 'preparing', 'prepared', 'released', 'completed', 'cancelled'].map((s) => (
             <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>
           ))}
         </select>

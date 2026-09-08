@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { fetchRequests } from '../lib/queries';
 import type { DispenserRequest } from '../lib/types';
+import { hasRole } from '../lib/types';
 import { StatCard } from '../components/StatCard';
 import { RequestsTable } from '../components/RequestsTable';
 import { daysOverdue } from '../lib/utils';
@@ -13,12 +14,12 @@ export function Monitoring() {
 
   useEffect(() => {
     if (!profile) return;
-    const filters =
-      profile.role === 'insti_team'
-        ? { requestedBy: profile.id }
-        : profile.role === 'warehouse_officer'
-        ? { warehouseId: profile.warehouse_id || undefined }
-        : {};
+    const isAdminOrApproving = hasRole(profile, 'admin') || hasRole(profile, 'approving_officer');
+    const filters = isAdminOrApproving
+      ? {}
+      : hasRole(profile, 'warehouse_officer')
+      ? { warehouseId: profile.warehouse_id || undefined }
+      : { requestedBy: profile.id };
     fetchRequests(filters).then((data) => {
       setRequests(data as DispenserRequest[]);
       setLoading(false);

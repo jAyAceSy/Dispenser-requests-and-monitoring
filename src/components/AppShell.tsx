@@ -2,12 +2,7 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
-
-const ROLE_LABEL: Record<string, string> = {
-  insti_team: 'Insti Team',
-  warehouse_officer: 'Warehouse Officer',
-  admin: 'Admin / Inventory Analyst',
-};
+import { ROLE_LABEL, hasAnyRole } from '../lib/types';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { profile, signOut } = useAuth();
@@ -49,13 +44,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (!profile) return <>{children}</>;
 
-  const nav = [
-    { to: '/dashboard', label: 'Dashboard', roles: ['insti_team', 'warehouse_officer', 'admin'] },
-    { to: '/new-request', label: 'New Request', roles: ['insti_team'] },
-    { to: '/my-requests', label: 'My Requests', roles: ['insti_team'] },
+  const nav: { to: string; label: string; roles: import('../lib/types').UserRole[] }[] = [
+    { to: '/dashboard', label: 'Dashboard', roles: ['insti_team', 'warehouse_officer', 'admin', 'approving_officer'] },
+    { to: '/new-request', label: 'New Request', roles: ['insti_team', 'admin'] },
+    { to: '/my-requests', label: 'My Requests', roles: ['insti_team', 'admin'] },
+    { to: '/approvals', label: 'Approvals', roles: ['approving_officer'] },
     { to: '/incoming', label: 'Incoming Requests', roles: ['warehouse_officer'] },
     { to: '/all-requests', label: 'All Requests', roles: ['admin'] },
-    { to: '/monitoring', label: 'Monitoring', roles: ['admin', 'warehouse_officer', 'insti_team'] },
+    { to: '/monitoring', label: 'Monitoring', roles: ['admin', 'warehouse_officer', 'insti_team', 'approving_officer'] },
     { to: '/reports', label: 'Reports', roles: ['admin'] },
     { to: '/master/stores', label: 'Stores / Customers', roles: ['admin'] },
     { to: '/master/items', label: 'Dispenser Items', roles: ['admin'] },
@@ -72,7 +68,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         <nav className="flex-1 overflow-y-auto py-3">
           {nav
-            .filter((item) => item.roles.includes(profile.role))
+            .filter((item) => hasAnyRole(profile, item.roles))
             .map((item) => (
               <NavLink
                 key={item.to}
@@ -89,7 +85,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="px-4 py-4 border-t border-[var(--line)]">
           <div className="text-sm font-medium text-[var(--ink)] truncate">{profile.name}</div>
-          <div className="text-[11px] text-[var(--ink-soft)] mb-2">{ROLE_LABEL[profile.role]}</div>
+          <div className="text-[11px] text-[var(--ink-soft)] mb-2">{profile.roles.map((r) => ROLE_LABEL[r]).join(' + ')}</div>
           <button
             onClick={async () => {
               await signOut();

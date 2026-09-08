@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { fetchRequests } from '../lib/queries';
 import type { DispenserRequest, RequestStatus } from '../lib/types';
+import { hasRole } from '../lib/types';
 import { StatCard } from '../components/StatCard';
 import { RequestsTable } from '../components/RequestsTable';
 import { daysOverdue } from '../lib/utils';
@@ -15,135 +16,149 @@ function countOverdue(requests: DispenserRequest[]) {
   return requests.filter((r) => daysOverdue(r) > 0).length;
 }
 
+const OWN_COLS = [
+  { key: 'request_no', label: 'Request No.' },
+  { key: 'request_date', label: 'Request Date' },
+  { key: 'store', label: 'Store/Customer' },
+  { key: 'warehouse', label: 'Warehouse' },
+  { key: 'item', label: 'Dispenser Item' },
+  { key: 'qty', label: 'Quantity' },
+  { key: 'required_date', label: 'Required Date' },
+  { key: 'status', label: 'Status' },
+];
+
+const WH_COLS = [
+  { key: 'request_no', label: 'Request No.' },
+  { key: 'request_date', label: 'Request Date' },
+  { key: 'store', label: 'Store/Customer' },
+  { key: 'requested_by', label: 'Requested By' },
+  { key: 'item', label: 'Dispenser Item' },
+  { key: 'qty', label: 'Qty Requested' },
+  { key: 'required_date', label: 'Required Date' },
+  { key: 'status', label: 'Status' },
+  { key: 'days_pending', label: 'Days Pending' },
+];
+
+const ADMIN_COLS = [
+  { key: 'request_no', label: 'Request No.' },
+  { key: 'request_date', label: 'Request Date' },
+  { key: 'store', label: 'Store/Customer' },
+  { key: 'requested_by', label: 'Requested By' },
+  { key: 'warehouse', label: 'Warehouse' },
+  { key: 'item', label: 'Dispenser Item' },
+  { key: 'status', label: 'Status' },
+];
+
 export function Dashboard() {
   const { profile } = useAuth();
-  const [requests, setRequests] = useState<DispenserRequest[]>([]);
+  const [ownRequests, setOwnRequests] = useState<DispenserRequest[]>([]);
+  const [warehouseRequests, setWarehouseRequests] = useState<DispenserRequest[]>([]);
+  const [allRequests, setAllRequests] = useState<DispenserRequest[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const isInsti = hasRole(profile, 'insti_team') || hasRole(profile, 'admin');
+  const isWarehouse = hasRole(profile, 'warehouse_officer');
+  const isAdmin = hasRole(profile, 'admin');
+  const isApproving = hasRole(profile, 'approving_officer');
 
   useEffect(() => {
     if (!profile) return;
-    const filters =
-      profile.role === 'insti_team'
-        ? { requestedBy: profile.id }
-        : profile.role === 'warehouse_officer'
-        ? { warehouseId: profile.warehouse_id || undefined }
-        : {};
-    fetchRequests(filters).then((data) => {
-      setRequests(data as DispenserRequest[]);
-      setLoading(false);
-    });
-  }, [profile?.id, profile?.role, profile?.warehouse_id]);
+    const calls: Promise<void>[] = [];
+    calls.push(fetchRequests({ requestedBy: profile.id }).then((d) => setOwnRequests(d as DispenserRequest[])));
+    if (isWarehouse && profile.warehouse_id) {
+      calls.push(fetchRequests({ warehouseId: profile.warehouse_id }).then((d) => setWarehouseRequests(d as DispenserRequest[])));
+    }
+    if (isAdmin || isApproving) {
+      calls.push(fetchRequests().then((d) => setAllRequests(d as DispenserRequest[])));
+    }
+    Promise.all(calls).finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id]);
 
   if (loading) return <div className="bg-[var(--panel)] border border-[var(--line)] rounded-xl h-64 animate-pulse" />;
   if (!profile) return null;
 
-  if (profile.role === 'insti_team') return <InstiDashboard requests={requests} />;
-  if (profile.role === 'warehouse_officer') return <WarehouseDashboard requests={requests} hasWarehouse={!!profile.warehouse_id} />;
-  return <AdminDashboard requests={requests} />;
-}
-
-function InstiDashboard({ requests }: { requests: DispenserRequest[] }) {
-  const cols = [
-    { key: 'request_no', label: 'Request No.' },
-    { key: 'request_date', label: 'Request Date' },
-    { key: 'store', label: 'Store/Customer' },
-    { key: 'warehouse', label: 'Warehouse' },
-    { key: 'item', label: 'Dispenser Item' },
-    { key: 'qty', label: 'Quantity' },
-    { key: 'required_date', label: 'Required Date' },
-    { key: 'status', label: 'Status' },
-  ];
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-[var(--ink)]">Insti Team Dashboard</h1>
-          <p className="text-sm text-[var(--ink-soft)] mt-1">Your dispenser requests at a glance.</p>
-        </div>
-        <Link to="/new-request" className="bg-[var(--brand)] hover:bg-[var(--brand-dark)] text-white text-sm font-semibold rounded-md px-4 py-2.5">
-          + New Dispenser Request
-        </Link>
+    <div className="flex flex-col gap-10">
+      <div>
+        <h1 className="text-xl font-semibold text-[var(--ink)]">
+          {profile.name.split(' ')[0]}'s Dashboard
+        </h1>
+        <p className="text-sm text-[var(--ink-soft)] mt-1">
+          {[isInsti && 'Insti Team', isWarehouse && 'Warehouse Officer', isApproving && 'Approving Officer', isAdmin && 'Admin']
+            .filter(Boolean)
+            .join(' · ')}
+        </p>
       </div>
-      <div className="grid grid-cols-4 gap-3 mb-6">
-        <StatCard label="Total Requests" value={requests.length} />
-        <StatCard label="Submitted" value={countBy(requests, 'submitted')} />
-        <StatCard label="Preparing" value={countBy(requests, 'preparing')} tone="warn" />
-        <StatCard label="Prepared" value={countBy(requests, 'prepared')} />
-        <StatCard label="Released" value={countBy(requests, 'released')} />
-        <StatCard label="Completed" value={countBy(requests, 'completed')} tone="good" />
-        <StatCard label="Cancelled" value={countBy(requests, 'cancelled')} tone="danger" />
-        <StatCard label="Overdue" value={countOverdue(requests)} tone="danger" />
-      </div>
-      <RequestsTable requests={requests.slice(0, 10)} columns={cols} />
-    </div>
-  );
-}
 
-function WarehouseDashboard({ requests, hasWarehouse }: { requests: DispenserRequest[]; hasWarehouse: boolean }) {
-  const cols = [
-    { key: 'request_no', label: 'Request No.' },
-    { key: 'request_date', label: 'Request Date' },
-    { key: 'store', label: 'Store/Customer' },
-    { key: 'requested_by', label: 'Requested By' },
-    { key: 'item', label: 'Dispenser Item' },
-    { key: 'qty', label: 'Qty Requested' },
-    { key: 'required_date', label: 'Required Date' },
-    { key: 'status', label: 'Status' },
-    { key: 'days_pending', label: 'Days Pending' },
-  ];
-  return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-[var(--ink)]">Warehouse Officer Dashboard</h1>
-        <p className="text-sm text-[var(--ink-soft)] mt-1">Requests routed to your warehouse.</p>
-      </div>
-      {!hasWarehouse && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3 mb-6">
-          Your account isn't assigned to a warehouse yet. Ask an Admin to assign you to a Warehouse Location.
-        </div>
+      {isInsti && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold text-[var(--ink)]">My Requests</h2>
+            <Link to="/new-request" className="bg-[var(--brand)] hover:bg-[var(--brand-dark)] text-white text-sm font-semibold rounded-md px-4 py-2.5">
+              + New Dispenser Request
+            </Link>
+          </div>
+          <div className="grid grid-cols-4 gap-3 mb-4">
+            <StatCard label="Total Requests" value={ownRequests.length} />
+            <StatCard label="Submitted" value={countBy(ownRequests, 'submitted')} />
+            <StatCard label="Preparing" value={countBy(ownRequests, 'preparing')} tone="warn" />
+            <StatCard label="Released" value={countBy(ownRequests, 'released')} />
+            <StatCard label="Completed" value={countBy(ownRequests, 'completed')} tone="good" />
+            <StatCard label="Cancelled" value={countBy(ownRequests, 'cancelled')} tone="danger" />
+            <StatCard label="Overdue" value={countOverdue(ownRequests)} tone="danger" />
+          </div>
+          <RequestsTable requests={ownRequests.slice(0, 8)} columns={OWN_COLS} />
+        </section>
       )}
-      <div className="grid grid-cols-5 gap-3 mb-6">
-        <StatCard label="New Requests" value={countBy(requests, 'submitted')} tone="warn" />
-        <StatCard label="Received" value={countBy(requests, 'received')} />
-        <StatCard label="Preparing" value={countBy(requests, 'preparing')} tone="warn" />
-        <StatCard label="Prepared" value={countBy(requests, 'prepared')} />
-        <StatCard label="Released" value={countBy(requests, 'released')} />
-        <StatCard label="Completed" value={countBy(requests, 'completed')} tone="good" />
-        <StatCard label="Cancelled" value={countBy(requests, 'cancelled')} tone="danger" />
-        <StatCard label="Overdue" value={countOverdue(requests)} tone="danger" />
-        <StatCard
-          label="Pending"
-          value={requests.filter((r) => !['completed', 'cancelled'].includes(r.status)).length}
-        />
-      </div>
-      <RequestsTable requests={requests.filter((r) => r.status !== 'draft').slice(0, 10)} columns={cols} />
-    </div>
-  );
-}
 
-function AdminDashboard({ requests }: { requests: DispenserRequest[] }) {
-  const cols = [
-    { key: 'request_no', label: 'Request No.' },
-    { key: 'request_date', label: 'Request Date' },
-    { key: 'store', label: 'Store/Customer' },
-    { key: 'requested_by', label: 'Requested By' },
-    { key: 'warehouse', label: 'Warehouse' },
-    { key: 'item', label: 'Dispenser Item' },
-    { key: 'status', label: 'Status' },
-  ];
-  return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-[var(--ink)]">Admin Dashboard</h1>
-        <p className="text-sm text-[var(--ink-soft)] mt-1">Full visibility across all requests, warehouses, and stores.</p>
-      </div>
-      <div className="grid grid-cols-4 gap-3 mb-6">
-        <StatCard label="Total Requests" value={requests.length} />
-        <StatCard label="Pending" value={requests.filter((r) => !['completed', 'cancelled'].includes(r.status)).length} tone="warn" />
-        <StatCard label="Completed" value={countBy(requests, 'completed')} tone="good" />
-        <StatCard label="Overdue" value={countOverdue(requests)} tone="danger" />
-      </div>
-      <RequestsTable requests={requests.slice(0, 12)} columns={cols} />
+      {isWarehouse && (
+        <section>
+          <h2 className="text-base font-semibold text-[var(--ink)] mb-4">Warehouse Officer</h2>
+          {!profile.warehouse_id ? (
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
+              Your account isn't assigned to a warehouse yet. Ask an Admin to assign you to a Warehouse Location.
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-5 gap-3 mb-4">
+                <StatCard label="Approved (New)" value={countBy(warehouseRequests, 'approved')} tone="warn" />
+                <StatCard label="Preparing" value={countBy(warehouseRequests, 'preparing')} tone="warn" />
+                <StatCard label="Prepared" value={countBy(warehouseRequests, 'prepared')} />
+                <StatCard label="Released" value={countBy(warehouseRequests, 'released')} />
+                <StatCard label="Completed" value={countBy(warehouseRequests, 'completed')} tone="good" />
+                <StatCard label="Overdue" value={countOverdue(warehouseRequests)} tone="danger" />
+              </div>
+              <RequestsTable requests={warehouseRequests.filter((r) => r.status !== 'draft' && r.status !== 'submitted').slice(0, 8)} columns={WH_COLS} />
+            </>
+          )}
+        </section>
+      )}
+
+      {isApproving && (
+        <section>
+          <h2 className="text-base font-semibold text-[var(--ink)] mb-4">Approvals</h2>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <StatCard label="Awaiting Approval" value={countBy(allRequests, 'submitted')} tone="warn" />
+            <StatCard label="Approved Total" value={allRequests.filter((r) => r.approved_at).length} tone="good" />
+            <StatCard label="Total Requests" value={allRequests.length} />
+          </div>
+          <RequestsTable requests={allRequests.filter((r) => r.status === 'submitted').slice(0, 8)} columns={ADMIN_COLS} />
+        </section>
+      )}
+
+      {isAdmin && (
+        <section>
+          <h2 className="text-base font-semibold text-[var(--ink)] mb-4">Admin Overview</h2>
+          <div className="grid grid-cols-4 gap-3 mb-4">
+            <StatCard label="Total Requests" value={allRequests.length} />
+            <StatCard label="Pending" value={allRequests.filter((r) => !['completed', 'cancelled'].includes(r.status)).length} tone="warn" />
+            <StatCard label="Completed" value={countBy(allRequests, 'completed')} tone="good" />
+            <StatCard label="Overdue" value={countOverdue(allRequests)} tone="danger" />
+          </div>
+          <RequestsTable requests={allRequests.slice(0, 10)} columns={ADMIN_COLS} />
+        </section>
+      )}
     </div>
   );
 }

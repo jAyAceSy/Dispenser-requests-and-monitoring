@@ -41,10 +41,10 @@ export function Reports() {
   const byWarehouse = groupCount(filtered, (r) => r.warehouses?.warehouse_name || 'Unknown');
   const byItem = new Map<string, number>();
   filtered.forEach((r) => {
-    const item = r.dispenser_request_items?.[0];
-    if (!item) return;
-    const key = item.dispenser_items?.item_description || 'Unknown';
-    byItem.set(key, (byItem.get(key) || 0) + Number(item.quantity_requested || 0));
+    for (const item of r.dispenser_request_items || []) {
+      const key = item.dispenser_items ? `${item.dispenser_items.item_code} · ${item.dispenser_items.item_description}` : 'Unknown';
+      byItem.set(key, (byItem.get(key) || 0) + Number(item.quantity_requested || 0));
+    }
   });
   const byItemSorted = Array.from(byItem.entries()).sort((a, b) => b[1] - a[1]);
 
@@ -60,20 +60,24 @@ export function Reports() {
   const warehouseNames = Array.from(new Set(requests.map((r) => r.warehouses?.warehouse_name).filter(Boolean))) as string[];
 
   function exportReport() {
-    downloadCsv(
-      `dispenser-report-${new Date().toISOString().slice(0, 10)}.csv`,
-      filtered.map((r) => ({
-        request_no: r.request_no,
-        request_date: r.created_at,
-        store_customer: r.customer_name_snapshot,
-        warehouse: r.warehouses?.warehouse_name,
-        item: r.dispenser_request_items?.[0]?.dispenser_items?.item_description,
-        qty_requested: r.dispenser_request_items?.[0]?.quantity_requested,
-        qty_prepared: r.dispenser_request_items?.[0]?.quantity_prepared,
-        qty_released: r.dispenser_request_items?.[0]?.quantity_released,
-        status: r.status,
-      }))
-    );
+    const rows: Record<string, any>[] = [];
+    for (const r of filtered) {
+      for (const li of r.dispenser_request_items || []) {
+        rows.push({
+          request_no: r.request_no,
+          request_date: r.created_at.slice(0, 10),
+          store_customer: r.customer_name_snapshot,
+          warehouse: r.warehouses?.warehouse_name,
+          item_code: li.dispenser_items?.item_code,
+          item_description: li.dispenser_items?.item_description,
+          qty_requested: li.quantity_requested,
+          qty_prepared: li.quantity_prepared,
+          qty_released: li.quantity_released,
+          status: r.status,
+        });
+      }
+    }
+    downloadCsv(`dispenser-report-${new Date().toISOString().slice(0, 10)}.csv`, rows);
   }
 
   return (
