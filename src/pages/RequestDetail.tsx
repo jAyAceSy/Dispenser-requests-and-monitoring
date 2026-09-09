@@ -439,7 +439,7 @@ function Panel({ title, children, tone = 'default' }: { title: string; children:
 }
 
 function Grid({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <div className={`grid grid-cols-2 gap-4 ${className}`}>{children}</div>;
+  return <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${className}`}>{children}</div>;
 }
 
 function Info({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {

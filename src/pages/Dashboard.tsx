@@ -93,13 +93,13 @@ export function Dashboard() {
 
       {isInsti && (
         <section>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h2 className="text-base font-semibold text-[var(--ink)]">My Requests</h2>
             <Link to="/new-request" className="bg-[var(--brand)] hover:bg-[var(--brand-dark)] text-white text-sm font-semibold rounded-md px-4 py-2.5">
               + New Dispenser Request
             </Link>
           </div>
-          <div className="grid grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             <StatCard label="Total Requests" value={ownRequests.length} />
             <StatCard label="Submitted" value={countBy(ownRequests, 'submitted')} />
             <StatCard label="Preparing" value={countBy(ownRequests, 'preparing')} tone="warn" />
@@ -121,7 +121,7 @@ export function Dashboard() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-5 gap-3 mb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
                 <StatCard label="Approved (New)" value={countBy(warehouseRequests, 'approved')} tone="warn" />
                 <StatCard label="Preparing" value={countBy(warehouseRequests, 'preparing')} tone="warn" />
                 <StatCard label="Prepared" value={countBy(warehouseRequests, 'prepared')} />
@@ -138,7 +138,7 @@ export function Dashboard() {
       {isApproving && (
         <section>
           <h2 className="text-base font-semibold text-[var(--ink)] mb-4">Approvals</h2>
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
             <StatCard label="Awaiting Approval" value={countBy(allRequests, 'submitted')} tone="warn" />
             <StatCard label="Approved Total" value={allRequests.filter((r) => r.approved_at).length} tone="good" />
             <StatCard label="Total Requests" value={allRequests.length} />
@@ -150,7 +150,7 @@ export function Dashboard() {
       {isAdmin && (
         <section>
           <h2 className="text-base font-semibold text-[var(--ink)] mb-4">Admin Overview</h2>
-          <div className="grid grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             <StatCard label="Total Requests" value={allRequests.length} />
             <StatCard label="Pending" value={allRequests.filter((r) => !['completed', 'cancelled'].includes(r.status)).length} tone="warn" />
             <StatCard label="Completed" value={countBy(allRequests, 'completed')} tone="good" />

@@ -51,7 +51,7 @@ export function Monitoring() {
         <p className="text-sm text-[var(--ink-soft)] mt-1">Live view of pending and overdue dispenser requests.</p>
       </div>
 
-      <div className="grid grid-cols-4 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
         <StatCard label="Total Requests" value={requests.length} />
         <StatCard label="Pending" value={pending.length} tone="warn" />
         <StatCard label="Overdue" value={overdueReqs.length} tone="danger" />

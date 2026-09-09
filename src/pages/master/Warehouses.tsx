@@ -53,7 +53,7 @@ export function Warehouses() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl font-semibold text-[var(--ink)]">Warehouses</h1>
           <p className="text-sm text-[var(--ink-soft)] mt-1">Each warehouse routes to its assigned Warehouse Officer.</p>
@@ -66,7 +66,7 @@ export function Warehouses() {
       {showForm && (
         <div className="bg-[var(--panel)] border border-[var(--line)] rounded-xl p-5 mb-4">
           <h2 className="text-sm font-semibold mb-3">{editing ? 'Edit' : 'Add'} Warehouse</h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <LField label="Warehouse Code *"><input className="input" value={form.warehouse_code} onChange={(e) => setForm({ ...form, warehouse_code: e.target.value })} /></LField>
             <LField label="Warehouse Name *"><input className="input" value={form.warehouse_name} onChange={(e) => setForm({ ...form, warehouse_name: e.target.value })} /></LField>
             <LField label="Location"><input className="input" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} /></LField>

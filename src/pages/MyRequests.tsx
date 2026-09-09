@@ -47,7 +47,7 @@ export function MyRequests() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl font-semibold text-[var(--ink)]">My Requests</h1>
           <p className="text-sm text-[var(--ink-soft)] mt-1">Requests you have submitted, in progress, or completed.</p>
@@ -57,7 +57,7 @@ export function MyRequests() {
         </Link>
       </div>
 
-      <div className="flex gap-3 mb-4">
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}

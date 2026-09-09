@@ -70,7 +70,7 @@ export function Items() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl font-semibold text-[var(--ink)]">Dispenser Items</h1>
           <p className="text-sm text-[var(--ink-soft)] mt-1">Only active items appear when creating new requests.</p>
@@ -100,7 +100,7 @@ export function Items() {
       {showForm && (
         <div className="bg-[var(--panel)] border border-[var(--line)] rounded-xl p-5 mb-4">
           <h2 className="text-sm font-semibold mb-3">{editing ? 'Edit' : 'Add'} Dispenser Item</h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <LField label="Item Code *"><input className="input" value={form.item_code} onChange={(e) => setForm({ ...form, item_code: e.target.value })} /></LField>
             <LField label="Item Description *"><input className="input" value={form.item_description} onChange={(e) => setForm({ ...form, item_description: e.target.value })} /></LField>
             <LField label="Category"><input className="input" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></LField>

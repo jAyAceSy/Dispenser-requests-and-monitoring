@@ -79,7 +79,7 @@ export function Stores() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl font-semibold text-[var(--ink)]">Stores / Customers</h1>
           <p className="text-sm text-[var(--ink-soft)] mt-1">Master data used when creating dispenser requests.</p>
@@ -104,7 +104,7 @@ export function Stores() {
       {showForm && (
         <div className="bg-[var(--panel)] border border-[var(--line)] rounded-xl p-5 mb-4">
           <h2 className="text-sm font-semibold mb-3">{editing ? 'Edit' : 'Add'} Store / Customer</h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <LField label="Customer Code *"><input className="input" value={form.customer_code} onChange={(e) => setForm({ ...form, customer_code: e.target.value })} /></LField>
             <LField label="Store/Customer Name *"><input className="input" value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} /></LField>
             <LField label="Address" className="col-span-2"><input className="input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></LField>

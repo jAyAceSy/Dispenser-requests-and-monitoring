@@ -155,7 +155,7 @@ export function NewRequest() {
         <Section title="Dispenser Details">
           <div className="flex flex-col gap-3">
             {lines.map((line, idx) => (
-              <div key={line.key} className="flex items-end gap-2">
+              <div key={line.key} className="flex flex-col sm:flex-row sm:items-end gap-2">
                 <Field label={idx === 0 ? 'Dispenser Item *' : ''} className="flex-1 min-w-0">
                   <SearchableSelect
                     value={line.itemId || null}
@@ -164,28 +164,30 @@ export function NewRequest() {
                     options={itemOptions}
                   />
                 </Field>
-                <Field label={idx === 0 ? 'Quantity *' : ''} className="w-32 shrink-0">
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    required
-                    value={line.quantity}
-                    onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
-                    className="input"
-                    placeholder="Qty"
-                  />
-                </Field>
-                <button
-                  type="button"
-                  onClick={() => removeLine(line.key)}
-                  disabled={lines.length === 1}
-                  className="h-[38px] px-2.5 rounded-md border border-[var(--line)] text-[var(--rust)] disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
-                  aria-label="Remove item"
-                  title="Remove item"
-                >
-                  ✕
-                </button>
+                <div className="flex gap-2 items-end">
+                  <Field label={idx === 0 ? 'Quantity *' : ''} className="w-28 sm:w-32 shrink-0">
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      required
+                      value={line.quantity}
+                      onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
+                      className="input"
+                      placeholder="Qty"
+                    />
+                  </Field>
+                  <button
+                    type="button"
+                    onClick={() => removeLine(line.key)}
+                    disabled={lines.length === 1}
+                    className="h-[38px] px-2.5 rounded-md border border-[var(--line)] text-[var(--rust)] disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                    aria-label="Remove item"
+                    title="Remove item"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
             ))}
             <button
@@ -235,7 +237,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function Grid({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <div className={`grid grid-cols-2 gap-4 ${className}`}>{children}</div>;
+  return <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${className}`}>{children}</div>;
 }
 
 function Field({ label, children, className = '' }: { label: string; children: React.ReactNode; className?: string }) {

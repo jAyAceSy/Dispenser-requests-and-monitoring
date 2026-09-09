@@ -40,7 +40,7 @@ export function Approvals() {
         <p className="text-sm text-[var(--ink-soft)] mt-1">Requests waiting for your review before they're routed to a warehouse.</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         <StatCard label="Awaiting Approval" value={pending.length} tone="warn" />
         <StatCard label="Approved" value={requests.filter((r) => r.status !== 'draft' && r.status !== 'submitted' && r.status !== 'cancelled').length} tone="good" />
         <StatCard label="Total Requests" value={requests.length} />

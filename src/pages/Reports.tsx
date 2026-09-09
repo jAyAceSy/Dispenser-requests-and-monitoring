@@ -82,7 +82,7 @@ export function Reports() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl font-semibold text-[var(--ink)]">Monitoring &amp; Reports</h1>
           <p className="text-sm text-[var(--ink-soft)] mt-1">Trends and breakdowns across stores, warehouses, and dispenser items.</p>
@@ -92,7 +92,7 @@ export function Reports() {
         </button>
       </div>
 
-      <div className="flex gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-[var(--ink-soft)]">Date From</span>
           <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="border border-[var(--line)] rounded-md px-3 py-2 text-sm bg-white" />
@@ -110,7 +110,7 @@ export function Reports() {
         </label>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <ReportCard title="Requests by Store/Customer" rows={byStore} />
         <ReportCard title="Requests by Warehouse" rows={byWarehouse} />
         <ReportCard title="Quantity Requested by Dispenser Item" rows={byItemSorted} />

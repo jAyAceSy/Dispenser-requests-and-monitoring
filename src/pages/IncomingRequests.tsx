@@ -56,7 +56,7 @@ export function IncomingRequests() {
         <p className="text-sm text-[var(--ink-soft)] mt-1">Requests routed to your assigned warehouse.</p>
       </div>
 
-      <div className="flex gap-3 mb-4">
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
