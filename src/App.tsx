@@ -8,6 +8,7 @@ import { MyRequests } from './pages/MyRequests';
 import { IncomingRequests } from './pages/IncomingRequests';
 import { AllRequests } from './pages/AllRequests';
 import { Approvals } from './pages/Approvals';
+import { PendingApproval } from './pages/PendingApproval';
 import { RequestDetail } from './pages/RequestDetail';
 import { PrintRequest } from './pages/PrintRequest';
 import { Monitoring } from './pages/Monitoring';
@@ -23,6 +24,7 @@ function Protected({ children, roles }: { children: React.ReactNode; roles?: Use
   if (loading) return <div className="min-h-screen flex items-center justify-center text-sm text-[var(--ink-soft)]">Loading…</div>;
   if (!session) return <Navigate to="/login" replace />;
   if (!profile) return <div className="min-h-screen flex items-center justify-center text-sm text-[var(--ink-soft)]">Setting up your account…</div>;
+  if (!profile.active) return <PendingApproval />;
   if (roles && !hasAnyRole(profile, roles)) return <Navigate to="/dashboard" replace />;
   return <AppShell>{children}</AppShell>;
 }
