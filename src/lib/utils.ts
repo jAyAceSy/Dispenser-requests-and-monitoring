@@ -71,6 +71,14 @@ export function parseCsv(text: string): Record<string, string>[] {
   });
 }
 
+export function friendlyDeleteError(err: { code?: string; message: string } | null, entityLabel: string): string | null {
+  if (!err) return null;
+  if (err.code === '23503') {
+    return `This ${entityLabel} has existing requests or history linked to it, so it can't be deleted. Deactivate it instead to keep records intact.`;
+  }
+  return err.message;
+}
+
 export function downloadCsv(filename: string, rows: Record<string, any>[]) {
   const csv = toCsv(rows);
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
