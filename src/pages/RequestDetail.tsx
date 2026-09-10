@@ -5,8 +5,9 @@ import { useAuth } from '../lib/AuthContext';
 import { fetchRequestById, fetchHistory } from '../lib/queries';
 import type { DispenserRequest, RequestHistoryEntry } from '../lib/types';
 import { hasRole } from '../lib/types';
+import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { StatusBadge, OverdueBadge } from '../components/StatusBadge';
-import { fmtDate, fmtDateTime, daysOverdue } from '../lib/utils';
+import { fmtDate, fmtDateTime, daysOverdue, friendlyDeleteError } from '../lib/utils';
 
 interface LineState {
   prepared: string;
@@ -166,6 +167,12 @@ export function RequestDetail() {
     setShowCancelForm(false);
   }
 
+  async function handleDeleteRequest() {
+    const { error: err } = await supabase.from('dispenser_requests').delete().eq('id', req!.id);
+    if (err) return { error: friendlyDeleteError(err, 'request') };
+    navigate(isAdmin ? '/all-requests' : '/my-requests');
+  }
+
   const canCancel = isAdmin && req.status !== 'completed' && req.status !== 'cancelled';
 
   return (
@@ -181,7 +188,7 @@ export function RequestDetail() {
           </div>
           <p className="text-sm text-[var(--ink-soft)] mt-1">Created {fmtDateTime(req.created_at)} by {req.users?.name}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
           {canPrint && (
             <Link to={`/print/${req.id}`} target="_blank" className="text-sm font-medium border border-[var(--line)] rounded-md px-3 py-2 hover:bg-[#eef1f0]">
               Print Form
@@ -191,6 +198,15 @@ export function RequestDetail() {
             <button onClick={() => setShowCancelForm(true)} className="text-sm font-medium text-[var(--rust)] border border-red-200 bg-red-50 rounded-md px-3 py-2 hover:bg-red-100">
               Cancel Request
             </button>
+          )}
+          {isAdmin && (
+            <div className="border border-red-200 bg-red-50 rounded-md px-3 py-2 flex items-center">
+              <ConfirmDeleteButton
+                label="Delete Request"
+                confirmText="Permanently delete this request and all its history? This cannot be undone. Use Cancel instead for normal record-keeping."
+                onConfirm={handleDeleteRequest}
+              />
+            </div>
           )}
         </div>
       </div>
