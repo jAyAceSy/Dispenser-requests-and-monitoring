@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { DispenserItem } from '../../lib/types';
 import { BulkUploadModal } from '../../components/BulkUploadModal';
+import { ConfirmDeleteButton } from '../../components/ConfirmDeleteButton';
+import { friendlyDeleteError } from '../../lib/utils';
 
 const empty = { item_code: '', item_description: '', category: '', uom: 'PC' };
 
@@ -44,6 +46,12 @@ export function Items() {
 
   async function toggleActive(i: DispenserItem) {
     await supabase.from('dispenser_items').update({ active: !i.active }).eq('id', i.id);
+    load();
+  }
+
+  async function handleDelete(i: DispenserItem) {
+    const { error: err } = await supabase.from('dispenser_items').delete().eq('id', i.id);
+    if (err) return { error: friendlyDeleteError(err, 'dispenser item') };
     load();
   }
 
@@ -116,38 +124,48 @@ export function Items() {
 
       {loading ? (
         <div className="bg-[var(--panel)] border border-[var(--line)] rounded-xl h-48 animate-pulse" />
+      ) : items.length === 0 ? (
+        <div className="bg-[var(--panel)] border border-dashed border-[var(--line)] rounded-xl py-14 text-center">
+          <p className="text-sm font-medium text-[var(--ink)]">No dispenser items yet</p>
+          <p className="text-xs text-[var(--ink-soft)] mt-1">Add one above, or bulk upload a CSV to get started.</p>
+        </div>
       ) : (
         <div className="bg-[var(--panel)] border border-[var(--line)] rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--line)] bg-[#f9faf9]">
-                {['Code', 'Description', 'Category', 'UOM', 'Status', ''].map((h) => (
-                  <th key={h} className="text-left text-xs uppercase tracking-wide text-[var(--ink-soft)] px-4 py-3">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((i) => (
-                <tr key={i.id} className="border-b border-[var(--line)] last:border-0 hover:bg-[#f9faf9]">
-                  <td className="px-4 py-3 font-mono-tag">{i.item_code}</td>
-                  <td className="px-4 py-3">{i.item_description}</td>
-                  <td className="px-4 py-3 text-[var(--ink-soft)]">{i.category || '—'}</td>
-                  <td className="px-4 py-3 text-[var(--ink-soft)]">{i.uom}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${i.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                      {i.active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap">
-                    <button onClick={() => openEdit(i)} className="text-xs font-semibold text-[var(--brand)] hover:underline mr-3">Edit</button>
-                    <button onClick={() => toggleActive(i)} className="text-xs font-semibold text-[var(--ink-soft)] hover:underline">
-                      {i.active ? 'Deactivate' : 'Activate'}
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--line)] bg-[#f9faf9]">
+                  {['Code', 'Description', 'Category', 'UOM', 'Status', ''].map((h) => (
+                    <th key={h} className="text-left text-xs uppercase tracking-wide text-[var(--ink-soft)] px-4 py-3 whitespace-nowrap">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {items.map((i) => (
+                  <tr key={i.id} className="border-b border-[var(--line)] last:border-0 hover:bg-[#f9faf9]">
+                    <td className="px-4 py-3 font-mono-tag whitespace-nowrap">{i.item_code}</td>
+                    <td className="px-4 py-3">{i.item_description}</td>
+                    <td className="px-4 py-3 text-[var(--ink-soft)]">{i.category || '—'}</td>
+                    <td className="px-4 py-3 text-[var(--ink-soft)]">{i.uom}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${i.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {i.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-3 flex-wrap">
+                        <button onClick={() => openEdit(i)} className="text-xs font-semibold text-[var(--brand)] hover:underline">Edit</button>
+                        <button onClick={() => toggleActive(i)} className="text-xs font-semibold text-[var(--ink-soft)] hover:underline">
+                          {i.active ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <ConfirmDeleteButton confirmText={`Delete ${i.item_code}?`} onConfirm={() => handleDelete(i)} />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
       <style>{`.input { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font-size: 14px; width: 100%; background: white; }`}</style>
