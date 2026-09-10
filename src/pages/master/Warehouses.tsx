@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { Warehouse, AppUser } from '../../lib/types';
+import { ConfirmDeleteButton } from '../../components/ConfirmDeleteButton';
+import { friendlyDeleteError } from '../../lib/utils';
 
 const empty = { warehouse_code: '', warehouse_name: '', location: '', assigned_officer_id: '' };
 
@@ -16,7 +18,7 @@ export function Warehouses() {
   async function load() {
     const [wh, off] = await Promise.all([
       supabase.from('warehouses').select('*').order('warehouse_name'),
-      supabase.from('users').select('*').eq('role', 'warehouse_officer').order('name'),
+      supabase.from('users').select('*').contains('roles', ['warehouse_officer']).order('name'),
     ]);
     setWarehouses(wh.data || []);
     setOfficers(off.data || []);
@@ -48,6 +50,12 @@ export function Warehouses() {
 
   async function toggleActive(w: Warehouse) {
     await supabase.from('warehouses').update({ active: !w.active }).eq('id', w.id);
+    load();
+  }
+
+  async function handleDelete(w: Warehouse) {
+    const { error: err } = await supabase.from('warehouses').delete().eq('id', w.id);
+    if (err) return { error: friendlyDeleteError(err, 'warehouse') };
     load();
   }
 
@@ -87,38 +95,48 @@ export function Warehouses() {
 
       {loading ? (
         <div className="bg-[var(--panel)] border border-[var(--line)] rounded-xl h-48 animate-pulse" />
+      ) : warehouses.length === 0 ? (
+        <div className="bg-[var(--panel)] border border-dashed border-[var(--line)] rounded-xl py-14 text-center">
+          <p className="text-sm font-medium text-[var(--ink)]">No warehouses yet</p>
+          <p className="text-xs text-[var(--ink-soft)] mt-1">Add your first warehouse location above.</p>
+        </div>
       ) : (
         <div className="bg-[var(--panel)] border border-[var(--line)] rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--line)] bg-[#f9faf9]">
-                {['Code', 'Name', 'Location', 'Assigned Officer', 'Status', ''].map((h) => (
-                  <th key={h} className="text-left text-xs uppercase tracking-wide text-[var(--ink-soft)] px-4 py-3">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {warehouses.map((w) => (
-                <tr key={w.id} className="border-b border-[var(--line)] last:border-0 hover:bg-[#f9faf9]">
-                  <td className="px-4 py-3 font-mono-tag">{w.warehouse_code}</td>
-                  <td className="px-4 py-3">{w.warehouse_name}</td>
-                  <td className="px-4 py-3 text-[var(--ink-soft)]">{w.location || '—'}</td>
-                  <td className="px-4 py-3 text-[var(--ink-soft)]">{officers.find((o) => o.id === w.assigned_officer_id)?.name || 'Unassigned'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${w.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                      {w.active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap">
-                    <button onClick={() => openEdit(w)} className="text-xs font-semibold text-[var(--brand)] hover:underline mr-3">Edit</button>
-                    <button onClick={() => toggleActive(w)} className="text-xs font-semibold text-[var(--ink-soft)] hover:underline">
-                      {w.active ? 'Deactivate' : 'Activate'}
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--line)] bg-[#f9faf9]">
+                  {['Code', 'Name', 'Location', 'Assigned Officer', 'Status', ''].map((h) => (
+                    <th key={h} className="text-left text-xs uppercase tracking-wide text-[var(--ink-soft)] px-4 py-3 whitespace-nowrap">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {warehouses.map((w) => (
+                  <tr key={w.id} className="border-b border-[var(--line)] last:border-0 hover:bg-[#f9faf9]">
+                    <td className="px-4 py-3 font-mono-tag whitespace-nowrap">{w.warehouse_code}</td>
+                    <td className="px-4 py-3">{w.warehouse_name}</td>
+                    <td className="px-4 py-3 text-[var(--ink-soft)]">{w.location || '—'}</td>
+                    <td className="px-4 py-3 text-[var(--ink-soft)] whitespace-nowrap">{officers.find((o) => o.id === w.assigned_officer_id)?.name || 'Unassigned'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${w.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {w.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-3 flex-wrap">
+                        <button onClick={() => openEdit(w)} className="text-xs font-semibold text-[var(--brand)] hover:underline">Edit</button>
+                        <button onClick={() => toggleActive(w)} className="text-xs font-semibold text-[var(--ink-soft)] hover:underline">
+                          {w.active ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <ConfirmDeleteButton confirmText={`Delete ${w.warehouse_code}?`} onConfirm={() => handleDelete(w)} />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
       <style>{`.input { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font-size: 14px; width: 100%; background: white; }`}</style>
