@@ -45,7 +45,7 @@ export function Login() {
             <div className="text-center py-4">
               <p className="text-sm text-[var(--ink)] font-medium">Account created.</p>
               <p className="text-sm text-[var(--ink-soft)] mt-1">
-                You can sign in now. If email confirmation is required, check your inbox first.
+                An Admin needs to approve your account before you can sign in and use the system. You can try signing in any time — you'll see a pending screen until you're approved.
               </p>
               <button
                 onClick={() => { setSignedUp(false); setMode('signin'); }}
