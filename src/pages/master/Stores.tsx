@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { StoreCustomer } from '../../lib/types';
 import { BulkUploadModal } from '../../components/BulkUploadModal';
+import { ConfirmDeleteButton } from '../../components/ConfirmDeleteButton';
+import { friendlyDeleteError } from '../../lib/utils';
 
 const empty = { customer_code: '', customer_name: '', address: '' };
 
@@ -49,6 +51,12 @@ export function Stores() {
 
   async function toggleActive(s: StoreCustomer) {
     await supabase.from('stores_customers').update({ active: !s.active }).eq('id', s.id);
+    load();
+  }
+
+  async function handleDelete(s: StoreCustomer) {
+    const { error: err } = await supabase.from('stores_customers').delete().eq('id', s.id);
+    if (err) return { error: friendlyDeleteError(err, 'store/customer') };
     load();
   }
 
@@ -131,37 +139,47 @@ export function Stores() {
 
       {loading ? (
         <div className="bg-[var(--panel)] border border-[var(--line)] rounded-xl h-48 animate-pulse" />
+      ) : filtered.length === 0 ? (
+        <div className="bg-[var(--panel)] border border-dashed border-[var(--line)] rounded-xl py-14 text-center">
+          <p className="text-sm font-medium text-[var(--ink)]">No stores/customers yet</p>
+          <p className="text-xs text-[var(--ink-soft)] mt-1">Add one above, or bulk upload a CSV to get started.</p>
+        </div>
       ) : (
         <div className="bg-[var(--panel)] border border-[var(--line)] rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--line)] bg-[#f9faf9]">
-                {['Code', 'Name', 'Address', 'Status', ''].map((h) => (
-                  <th key={h} className="text-left text-xs uppercase tracking-wide text-[var(--ink-soft)] px-4 py-3">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((s) => (
-                <tr key={s.id} className="border-b border-[var(--line)] last:border-0 hover:bg-[#f9faf9]">
-                  <td className="px-4 py-3 font-mono-tag">{s.customer_code}</td>
-                  <td className="px-4 py-3">{s.customer_name}</td>
-                  <td className="px-4 py-3 text-[var(--ink-soft)]">{s.address || '—'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${s.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                      {s.active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap">
-                    <button onClick={() => openEdit(s)} className="text-xs font-semibold text-[var(--brand)] hover:underline mr-3">Edit</button>
-                    <button onClick={() => toggleActive(s)} className="text-xs font-semibold text-[var(--ink-soft)] hover:underline">
-                      {s.active ? 'Deactivate' : 'Activate'}
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--line)] bg-[#f9faf9]">
+                  {['Code', 'Name', 'Address', 'Status', ''].map((h) => (
+                    <th key={h} className="text-left text-xs uppercase tracking-wide text-[var(--ink-soft)] px-4 py-3 whitespace-nowrap">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filtered.map((s) => (
+                  <tr key={s.id} className="border-b border-[var(--line)] last:border-0 hover:bg-[#f9faf9]">
+                    <td className="px-4 py-3 font-mono-tag whitespace-nowrap">{s.customer_code}</td>
+                    <td className="px-4 py-3">{s.customer_name}</td>
+                    <td className="px-4 py-3 text-[var(--ink-soft)]">{s.address || '—'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${s.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {s.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-3 flex-wrap">
+                        <button onClick={() => openEdit(s)} className="text-xs font-semibold text-[var(--brand)] hover:underline">Edit</button>
+                        <button onClick={() => toggleActive(s)} className="text-xs font-semibold text-[var(--ink-soft)] hover:underline">
+                          {s.active ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <ConfirmDeleteButton confirmText={`Delete ${s.customer_code}?`} onConfirm={() => handleDelete(s)} />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
       <style>{`.input { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font-size: 14px; width: 100%; background: white; }`}</style>
