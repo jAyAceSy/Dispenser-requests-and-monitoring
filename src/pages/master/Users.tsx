@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { AppUser, UserRole, Warehouse } from '../../lib/types';
 import { ROLE_LABEL } from '../../lib/types';
+import { ConfirmDeleteButton } from '../../components/ConfirmDeleteButton';
+import { friendlyDeleteError } from '../../lib/utils';
+import { useAuth } from '../../lib/AuthContext';
 
 const ALL_ROLES: UserRole[] = ['insti_team', 'warehouse_officer', 'approving_officer', 'admin'];
 
 export function Users() {
+  const { profile: currentProfile } = useAuth();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,12 +39,21 @@ export function Users() {
     setEditingRolesFor((current) => (current && current.id === u.id ? { ...current, roles: next } : current));
   }
 
+  async function handleDelete(u: AppUser) {
+    const { error: err } = await supabase.from('users').delete().eq('id', u.id);
+    if (err) return { error: friendlyDeleteError(err, 'user') };
+    load();
+  }
+
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-[var(--ink)]">Users</h1>
         <p className="text-sm text-[var(--ink-soft)] mt-1">
           People create their own accounts via the Sign Up screen (Admin accounts must be granted here). Tap a user's roles to assign more than one.
+        </p>
+        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-2 inline-block">
+          Note: Deleting a user removes their profile from this app, but not their login account. Use Deactivate for accounts you may want to fully lock out — it takes effect immediately.
         </p>
       </div>
 
@@ -88,12 +101,17 @@ export function Users() {
                       )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <button
-                        onClick={() => updateUser(u.id, { active: !u.active })}
-                        className={`px-2 py-0.5 rounded text-xs font-medium ${u.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}
-                      >
-                        {u.active ? 'Active' : 'Inactive'}
-                      </button>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <button
+                          onClick={() => updateUser(u.id, { active: !u.active })}
+                          className={`px-2 py-0.5 rounded text-xs font-medium ${u.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}
+                        >
+                          {u.active ? 'Active' : 'Inactive'}
+                        </button>
+                        {u.id !== currentProfile?.id && (
+                          <ConfirmDeleteButton confirmText={`Delete ${u.name}?`} onConfirm={() => handleDelete(u)} />
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
