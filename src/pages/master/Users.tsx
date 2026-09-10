@@ -50,10 +50,15 @@ export function Users() {
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-[var(--ink)]">Users</h1>
         <p className="text-sm text-[var(--ink-soft)] mt-1">
-          People create their own accounts via the Sign Up screen (Admin accounts must be granted here). Tap a user's roles to assign more than one.
+          People create their own accounts via the Sign Up screen, but new accounts stay locked out until an Admin approves them here. Tap a user's roles to assign more than one.
         </p>
-        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-2 inline-block">
-          Note: Deleting a user removes their profile from this app, but not their login account. Use Deactivate for accounts you may want to fully lock out — it takes effect immediately.
+        {!loading && users.some((u) => !u.active) && (
+          <div className="text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-2 inline-block">
+            {users.filter((u) => !u.active).length} account(s) waiting for approval — look for "Approve / Activate" below.
+          </div>
+        )}
+        <p className="text-xs text-[var(--ink-soft)] mt-2">
+          Note: Deleting a user removes their profile from this app, but not their login account.
         </p>
       </div>
 
@@ -104,9 +109,9 @@ export function Users() {
                       <div className="flex items-center gap-3 flex-wrap">
                         <button
                           onClick={() => updateUser(u.id, { active: !u.active })}
-                          className={`px-2 py-0.5 rounded text-xs font-medium ${u.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}
+                          className={`px-2 py-0.5 rounded text-xs font-medium ${u.active ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}
                         >
-                          {u.active ? 'Active' : 'Inactive'}
+                          {u.active ? 'Active' : 'Approve / Activate'}
                         </button>
                         {u.id !== currentProfile?.id && (
                           <ConfirmDeleteButton confirmText={`Delete ${u.name}?`} onConfirm={() => handleDelete(u)} />
